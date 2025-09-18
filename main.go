@@ -19,7 +19,7 @@ var headColor, tailColor Color
 var rain Rain
 var buffer [][]int8
 
-
+var face int = 2
 
 
 func resize() {
@@ -36,6 +36,8 @@ func resize() {
 func main() {
 	headColor = Color{255, 153, 0}
 	tailColor = Color{204, 51, 0}
+	// headColor = Color{153, 255, 51}
+	// tailColor = Color{0, 204, 102}
 
 	var e error
 	scr, e = tcell.NewScreen()
@@ -56,7 +58,7 @@ func main() {
 			ch_ScreenEvents <- ev
 		}
 	}()
-	ch_Tick := time.Tick(20*time.Millisecond)
+	ch_Tick := time.Tick(100*time.Millisecond)
 
 	init := 100
 
