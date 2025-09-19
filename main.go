@@ -16,10 +16,12 @@ type Color struct {
 var scr tcell.Screen
 var w, h int
 var headColor, tailColor Color
+var mutantHead, mutantTail Color
+var mutant bool = true
 var rain Rain
 var buffer [][]int8
 
-var face int = 2
+var face int = 5
 
 
 func resize() {
@@ -38,6 +40,9 @@ func main() {
 	tailColor = Color{204, 51, 0}
 	// headColor = Color{153, 255, 51}
 	// tailColor = Color{0, 204, 102}
+
+	mutantHead = Color{100, 100, 100}
+	mutantTail = Color{50, 100, 50}
 
 	var e error
 	scr, e = tcell.NewScreen()
@@ -58,9 +63,9 @@ func main() {
 			ch_ScreenEvents <- ev
 		}
 	}()
-	ch_Tick := time.Tick(100*time.Millisecond)
+	ch_Tick := time.Tick(75*time.Millisecond)
 
-	init := 100
+	init := 0
 
 	INIT: for {
 		select {

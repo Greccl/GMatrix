@@ -11,6 +11,7 @@ import (
 
 type Drop struct {
 	runes []rune
+	mutant bool
 
 	length int
 	pos int
@@ -46,6 +47,9 @@ func (self *Column) add() {
 	d.length = rand.IntN(16) + 10
 	d.speed = rand.IntN(4) + 1
 	d.count = 0
+	if mutant {
+		d.mutant = rand.IntN(20) < 2
+	}
 	for r := range d.runes {
 		switch face {
 			case 0:
@@ -54,6 +58,12 @@ func (self *Column) add() {
 				d.runes[r] = rand.Int32N(2) + 48
 			case 2:
 				d.runes[r] = rand.Int32N(93) + 33
+			case 3:
+				d.runes[r] = rand.Int32N(96) + 0x30A0
+			case 4:
+				d.runes[r] = rand.Int32N(96) + 0x3040
+			case 5:
+				d.runes[r] = rand.Int32N(144) + 0x0370
 		}
 	}
 }
@@ -119,9 +129,16 @@ func (self *Column) tick() {
 func (self *Column) draw(i int) {
 	d := &self.drops[i]
 	s := tcell.StyleDefault
-	r := tailColor.r / int32(d.length)
-	g := tailColor.g / int32(d.length)
-	b := tailColor.b / int32(d.length)
+	var r, g, b int32
+	if d.mutant {
+		r = mutantTail.r / int32(d.length)
+		g = mutantTail.g / int32(d.length)
+		b = mutantTail.b / int32(d.length)
+	} else {
+		r = tailColor.r / int32(d.length)
+		g = tailColor.g / int32(d.length)
+		b = tailColor.b / int32(d.length)
+	}
 
 	var y int
 
@@ -131,7 +148,11 @@ func (self *Column) draw(i int) {
 		if y < 0 { return }
 		if y >= h { continue }
 		if p == 0 {
-			s.SetForegroundRGB(headColor.r, headColor.g, headColor.b)
+			if d.mutant {
+				s.SetForegroundRGB(mutantHead.r, mutantHead.g, mutantHead.b)
+			} else {
+				s.SetForegroundRGB(headColor.r, headColor.g, headColor.b)
+			}
 		} else if p == l {
 			scr.SetContent(self.x, y, ' ', nil, tcell.StyleDefault)
 			continue
