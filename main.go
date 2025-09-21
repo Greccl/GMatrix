@@ -21,7 +21,7 @@ var mutant bool = true
 var rain Rain
 var buffer [][]int8
 
-var face int = 5
+var face int = 0
 
 
 func resize() {
@@ -41,8 +41,8 @@ func main() {
 	// headColor = Color{153, 255, 51}
 	// tailColor = Color{0, 204, 102}
 
-	mutantHead = Color{100, 100, 100}
-	mutantTail = Color{50, 100, 50}
+	mutantHead = Color{204, 153, 255}
+	mutantTail = Color{204, 51, 153}
 
 	var e error
 	scr, e = tcell.NewScreen()
@@ -63,7 +63,7 @@ func main() {
 			ch_ScreenEvents <- ev
 		}
 	}()
-	ch_Tick := time.Tick(75*time.Millisecond)
+	ch_Tick := time.Tick(33*time.Millisecond)
 
 	init := 0
 

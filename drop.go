@@ -44,11 +44,16 @@ func (self *Column) add() {
 	d = &self.drops[self.count-1]
 
 	d.pos = 0
-	d.length = rand.IntN(16) + 10
-	d.speed = rand.IntN(4) + 1
+	d.mutant = false
+	d.length = rand.IntN(10) + 10
+	d.speed = rand.IntN(5) + 5
+	if rand.IntN(100) < 10 {
+		d.speed = rand.IntN(2) + 1
+		d.mutant = true
+	}
 	d.count = 0
 	if mutant {
-		d.mutant = rand.IntN(20) < 2
+		//d.mutant = rand.IntN(100) < 5
 	}
 	for r := range d.runes {
 		switch face {
@@ -218,7 +223,7 @@ func (self *Rain) tick() {
 			}
 		}
 		// x = 0
-		if self.cols[x].count > 2 {
+		if self.cols[x].count > 1 {
 			continue
 		}
 		self.cols[x].x = x*2
