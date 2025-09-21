@@ -14,24 +14,41 @@ type Color struct {
 
 
 var scr tcell.Screen
-var w, h int
+var scrw, scrh int
 var headColor, tailColor Color
 var mutantHead, mutantTail Color
-var mutant bool = true
+var backHead, backTail Color
+//var mutant bool = true
 var rain Rain
-var buffer [][]int8
+//var buffer [][]int8
 
-var face int = 0
+var face int = 2
 
 
 func resize() {
-	w, h = scr.Size()
-	rain.resize(w, h)
-	buffer = make([][]int8, w)
+	scrw, scrh = scr.Size()
+	rain.resize()
+	/*
+	buffer = make([][]int8, scrw)
 	for i:= range buffer {
 		buffer[i] = make([]int8, h)
 	}
+	*/
 }
+
+func Reslice[T any](s []T, n int) []T {
+	if n == len(s) { return s }
+	if n <= cap(s) { return s[:n] }
+	newSlice := make([]T, n)
+	copy(newSlice, s)
+	return newSlice
+}
+
+
+
+
+
+
 
 
 
@@ -43,6 +60,9 @@ func main() {
 
 	mutantHead = Color{204, 153, 255}
 	mutantTail = Color{204, 51, 153}
+	
+	backHead = Color{57, 57, 172}
+	backTail = Color{51, 0, 102}
 
 	var e error
 	scr, e = tcell.NewScreen()
@@ -107,3 +127,5 @@ func main() {
 		}
 	}
 }
+
+
