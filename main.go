@@ -18,22 +18,15 @@ var scrw, scrh int
 var headColor, tailColor Color
 var mutantHead, mutantTail Color
 var backHead, backTail Color
-//var mutant bool = true
-var rain Rain
-//var buffer [][]int8
+
 
 var face int = 2
 
 
 func resize() {
 	scrw, scrh = scr.Size()
-	rain.resize()
-	/*
-	buffer = make([][]int8, scrw)
-	for i:= range buffer {
-		buffer[i] = make([]int8, h)
-	}
-	*/
+	rain_resize()
+	scr.Clear()
 }
 
 func Reslice[T any](s []T, n int) []T {
@@ -61,8 +54,10 @@ func main() {
 	mutantHead = Color{204, 153, 255}
 	mutantTail = Color{204, 51, 153}
 	
-	backHead = Color{57, 57, 172}
-	backTail = Color{51, 0, 102}
+	//backHead = Color{57, 57, 172}
+	//backTail = Color{51, 0, 102}
+	//backHead = Color{128, 0, 0}
+	backTail = Color{128, 0, 0 }
 
 	var e error
 	scr, e = tcell.NewScreen()
@@ -123,7 +118,7 @@ func main() {
 						resize()
 				}
 			case <- ch_Tick:
-				rain.tick()
+				rain_tick()
 		}
 	}
 }

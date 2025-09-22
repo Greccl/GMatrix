@@ -5,7 +5,14 @@ import (
 	"github.com/Greccl/tcell/v2"
 )
 
+type CellState struct {
+	r rune
+	b int32
+}
+
 type Column struct {
+	state []CellState
+
 	drops []Drop
 	count int
 	x int
@@ -19,25 +26,14 @@ func (self *Column) resize() {
 		self.drops[i].runes = Reslice(self.drops[i].runes, scrh)
 	}
 	self.backs.runes = Reslice(self.backs.runes, scrh)
-	self.count = 0
+	self.state = Reslice(self.state, scrh)
 }
 
 
-var backrunes = []rune{9679, 9670, 9643, 9642, 9702, 9711}
 
-func (self *Column) addBackDrop() {
-	d := &self.backs
-	d.pos = 0
-	d.length = rand.IntN(10) + 10
-	d.speed = rand.IntN(5) + 10
-	d.back = true
-	d.count = 0
-	
-	for r := range d.runes {
-		//d.runes[r] = backrunes[rand.IntN(len(backrunes))]
-		d.runes[r] = rand.Int32N(4) + 8756
-	}
-}
+
+
+
 
 func (self *Column) addForeDrop() {
 	var d *Drop
@@ -84,59 +80,6 @@ func (self *Column) remove(i int) {
 		self.drops[self.count-1].runes = old
 	}
 	self.count--
-}
-
-func (self *Column) backTick() {
-	d := &self.backs
-	
-	if d.speed == 0 { return }
-	
-	d.count++
-	if d.count >= d.speed {
-		d.pos++
-		d.count = 0
-	} else {
-		return
-	}
-
-	// Ending
-	d.end = d.pos - d.length + 1
-	if d.end < 0 { d.end = 0 }
-	if d.end >= scrh {
-		d.speed = 0
-	}
-
-	// Drawing
-	s := tcell.StyleDefault
-	var r, g, b int32
-	r = backTail.r // int32(d.length)
-	g = backTail.g // int32(d.length)
-	b = backTail.b // int32(d.length)
-
-	var y int
-
-	l := d.pos - d.end + 1
-	for p := 0; p <= l; p++ {
-		y = d.pos - p
-		if y < 0 { return }
-		if y >= scrh { continue }
-		if p == l {
-			scr.SetContent(self.x, y, ' ', nil, tcell.StyleDefault)
-			continue
-		} else {
-			/*
-			bright := int32(d.length - p)
-			if bright < 4 { bright = 4}
-			if bright > int32(d.length) { bright = int32(d.length) }
-			rr := r * bright
-			gg := g * bright
-			bb := b * bright
-			s.SetForegroundRGB(rr, gg, bb)
-			*/
-			s.SetForegroundRGB(r, g, b)
-		}
-		scr.SetContent(self.x, y, d.runes[y], nil, s)
-	}
 }
 
 func (self *Column) tick() {
@@ -215,11 +158,14 @@ func (self *Column) draw(i int) {
 			} else {
 				s.SetForegroundRGB(headColor.r, headColor.g, headColor.b)
 			}
+			self.state[y].b = 255
 		} else if p == l {
 			scr.SetContent(self.x, y, ' ', nil, tcell.StyleDefault)
+			self.state[y].b = 0
 			continue
 		} else {
 			bright := int32(d.length - p)
+			self.state[y].b = 255 / int32(d.length) * bright
 			rr := r * bright
 			gg := g * bright
 			bb := b * bright
@@ -227,5 +173,101 @@ func (self *Column) draw(i int) {
 		}
 		scr.SetContent(self.x, y, d.runes[y], nil, s)
 	}
+	if self.x > 0 { cols[self.x-1].backDraw() }
+	if self.x < scrw - 1 { cols[self.x+1].backDraw() }
+	
 	d.dirty = false
+}
+
+
+
+
+
+
+
+
+
+
+
+
+var backrunes = []rune{9679, 9670, 9643, 9642, 9702, 9711}
+
+func (self *Column) addBackDrop() {
+	d := &self.backs
+	d.pos = 0
+	d.length = rand.IntN(4) + 4
+	d.speed = rand.IntN(5) + 10
+	d.back = true
+	d.count = 0
+	
+	for r := range d.runes {
+		//d.runes[r] = backrunes[rand.IntN(len(backrunes))]
+		d.runes[r] = rand.Int32N(4) + 8756
+	}
+}
+
+func (self *Column) backTick() {
+	d := &self.backs
+	
+	if d.speed == 0 { return }
+	
+	d.count++
+	if d.count >= d.speed {
+		d.pos++
+		d.count = 0
+	} else {
+		return
+	}
+	
+	// Ending
+	d.end = d.pos - d.length + 1
+	if d.end < 0 { d.end = 0 }
+	if d.end >= scrh {
+		d.speed = 0
+	}
+
+	self.backDraw()
+}
+
+func (self *Column) backDraw() {
+	d := &self.backs
+	if d.length == 0 { return }
+
+	s := tcell.StyleDefault
+	var r, g, b int32
+	r = backTail.r / 128 //int32(d.length)
+	g = backTail.g / 128 //int32(d.length)
+	b = backTail.b / 128 //int32(d.length)
+
+	var y int
+
+	var prev, next *Column
+	if self.x > 0 { prev = &cols[self.x-1] }
+	if self.x < scrw - 1 { next = &cols[self.x+1] }
+	
+	l := d.pos - d.end + 1
+	for p := 0; p <= l; p++ {
+		y = d.pos - p
+		if y < 0 { return }
+		if y >= scrh { continue }
+		if p == l {
+			scr.SetContent(self.x, y, ' ', nil, tcell.StyleDefault)
+			continue
+		} else {
+			var bright int32 = 510
+			if prev != nil { bright -= prev.state[y].b }
+			if next != nil { bright -= next.state[y].b }
+			bright /= 4
+			//bright /= 255
+			self.state[y].b = bright
+			rr := r * bright
+			gg := g * bright
+			bb := b * bright
+			rr = 41
+			gg = 41
+			bb = 61
+			s.SetForegroundRGB(rr, gg, bb)
+		}
+		scr.SetContent(self.x, y, d.runes[y], nil, s)
+	}
 }
