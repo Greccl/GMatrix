@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"time"
+	// "bufio"
 	"github.com/Greccl/tcell/v2"
 )
 
@@ -12,19 +13,16 @@ type Color struct {
 	r, g, b int32
 }
 
-
 var scr tcell.Screen
 var scrw, scrh int
-var headColor, tailColor Color
-var mutantHead, mutantTail Color
-var backHead, backTail Color
-
-
-var face int = 2
+var oddOffset int
 
 
 func resize() {
 	scrw, scrh = scr.Size()
+	scrh -= reservedHeight
+	oddOffset = scrw % 2
+	state_resize()
 	rain_resize()
 	scr.Clear()
 }
@@ -37,28 +35,43 @@ func Reslice[T any](s []T, n int) []T {
 	return newSlice
 }
 
+func blend(a, b Color, alfa int32) Color {
+	var c Color
+	beta := 1000 - alfa
+	c.r = ((a.r * alfa) + (b.r * beta)) / 1000
+	c.g = ((a.g * alfa) + (b.g * beta)) / 1000
+	c.b = ((a.b * alfa) + (b.b * beta)) / 1000
+	return c
+}
 
+func printText(x, y int, s string) {
+	for i, r := range s {
+		scr.SetContent(x+i, y, r, nil, tcell.StyleDefault)
+	}
+	scr.Show()
+}
 
-
-
+func drawCell(level, x, y int, r rune, s tcell.Style) {
+	
+}
 
 
 
 
 func main() {
-	headColor = Color{255, 153, 0}
-	tailColor = Color{204, 51, 0}
-	// headColor = Color{153, 255, 51}
-	// tailColor = Color{0, 204, 102}
-
-	mutantHead = Color{204, 153, 255}
-	mutantTail = Color{204, 51, 153}
+	// Read command line arguments
+	defaults()
+	initCommands()
+	readCommandLine()
 	
-	//backHead = Color{57, 57, 172}
-	//backTail = Color{51, 0, 102}
-	//backHead = Color{128, 0, 0}
-	backTail = Color{128, 0, 0 }
+	// Open the pipe for reading external commands
+	var ch_Commands chan string
+	if cmdPath != "" {
+		ch_Commands = make(chan string)
+		go readCommandFile(cmdPath, ch_Commands)
+	}
 
+	// Init tcell screen
 	var e error
 	scr, e = tcell.NewScreen()
 	if e != nil {
@@ -78,47 +91,77 @@ func main() {
 			ch_ScreenEvents <- ev
 		}
 	}()
-	ch_Tick := time.Tick(33*time.Millisecond)
 
-	init := 0
+	// A timer to update animations
+	ch_Tick := time.Tick(time.Duration(frameDuration)*time.Millisecond)
 
-	INIT: for {
+	// Setup process, wait for resize event or abort
+	// if a timeout is reached (is 1 second enough?)
+	initTimeout := 0
+
+	INIT:
+	for {
 		select {
 			case ev := <- ch_ScreenEvents:
 				switch ev := ev.(type) {
 					case *tcell.EventKey:
 						if ev.Key() == tcell.KeyEscape {
-							init = -2
+							initTimeout = -2
 							break INIT
 						}
 					case *tcell.EventResize:
 						resize()
-						init = 0
+						initTimeout = 0
 						break INIT
 				}
 			case <- ch_Tick:
-				init--
-				if init < 0 {
+				initTimeout += frameDuration
+				if initTimeout >= 1000 {
 					break INIT
 				}
 		}
 	}
 	
-	if init < 0 {
+	if initTimeout != 0 {
+		// Timeout reached or aborted by Esc key
 		return
 	}
 
-	LOOP: for {
+	LOOP:
+	for {
 		select {
 			case ev := <- ch_ScreenEvents:
 				switch ev := ev.(type) {
 					case *tcell.EventKey:
 						if ev.Key() == tcell.KeyEscape { break LOOP }
+						if ev.Key() == tcell.KeyRune {
+							switch ev.Rune() {
+								case 'p':
+									rainStatus = !rainStatus
+								case 's':
+									if !rainStatus { rain_tick() }
+								case 'q':
+									break LOOP
+							}
+						}
 					case *tcell.EventResize:
 						resize()
 				}
+			case line := <- ch_Commands:
+				processCommand(line)
+				/*
+				switch line {
+					case "--end":
+						break LOOP
+					case "--pause":
+						playState = !playState
+				}
+				*/
 			case <- ch_Tick:
-				rain_tick()
+				if rainStatus {
+					rain_tick()
+				}
+				overlay_tick()
 		}
 	}
 }

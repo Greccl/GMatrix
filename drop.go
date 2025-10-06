@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"math/rand/v2"
+	"math/rand/v2"
 	//"github.com/Greccl/tcell/v2"
 )
 
@@ -9,10 +9,11 @@ import (
 type Drop struct {
 	runes []rune
 	mutant bool
+	lucent bool
 	back bool
 
-	length int
 	pos int
+	length int
 	head int
 	end int
 	dirty bool
@@ -22,5 +23,57 @@ type Drop struct {
 }
 
 
+
+func (self *Drop) makeNormal() {
+	self.mutant = false
+	// self.lucent = false
+	self.speed = rand.IntN(normalMaxSpeed-normalMinSpeed+1) + normalMinSpeed
+	self.speed = self.speed * normalSpeedStep
+	self.length = rand.IntN(normalMaxLen-normalMinLen) + normalMinLen
+	self.resetRunes(normalCharset)
+}
+
+func (self *Drop) makeMutant() {
+	self.mutant = true
+	// self.lucent = false
+	self.speed = rand.IntN(mutantMaxSpeed-mutantMinSpeed+1) + mutantMinSpeed
+	self.speed *= mutantSpeedStep
+	self.length = rand.IntN(mutantMaxLen-mutantMinLen) + mutantMinLen
+	self.resetRunes(mutantCharset)
+}
+
+
+
+
+
+func (self *Drop) makeLucent() {
+	self.makeNormal()
+	self.lucent = true
+}
+
+func (self *Drop) reset() {
+	self.pos = 0
+	self.count = 0
+	self.resetRunes(normalCharset)
+}
+
+func (self *Drop) resetRunes(n int) {
+	for r := range self.runes {
+		switch n {
+			case 0:
+				self.runes[r] = rand.Int32N(27) + 65
+			case 1:
+				self.runes[r] = rand.Int32N(2) + 48
+			case 2:
+				self.runes[r] = rand.Int32N(93) + 33
+			case 3:
+				self.runes[r] = rand.Int32N(96) + 0x30A0
+			case 4:
+				self.runes[r] = rand.Int32N(96) + 0x3040
+			case 5:
+				self.runes[r] = rand.Int32N(144) + 0x0370
+		}
+	}
+}
 
 

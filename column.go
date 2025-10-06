@@ -1,24 +1,27 @@
 package main
 
 import (
+	"fmt"
 	"math/rand/v2"
 	"github.com/Greccl/tcell/v2"
 )
 
-type CellState struct {
-	r rune
-	b int32
-}
+
 
 type Column struct {
-	state []CellState
+	// state []CellState
 
 	drops []Drop
 	count int
+	visibleCount int
 	x int
 
 	backs Drop
 }
+
+
+
+
 
 
 func (self *Column) resize() {
@@ -26,7 +29,7 @@ func (self *Column) resize() {
 		self.drops[i].runes = Reslice(self.drops[i].runes, scrh)
 	}
 	self.backs.runes = Reslice(self.backs.runes, scrh)
-	self.state = Reslice(self.state, scrh)
+	// self.state = Reslice(self.state, scrh)
 }
 
 
@@ -35,42 +38,13 @@ func (self *Column) resize() {
 
 
 
-func (self *Column) addForeDrop() {
-	var d *Drop
-
+func (self *Column) newDrop() *Drop {
 	if self.count == len(self.drops) {
 		self.drops = append(self.drops, Drop{})
 		self.drops[self.count].runes = make([]rune, scrh)
 	}
 	self.count++
-	d = &self.drops[self.count-1]
-
-	d.pos = 0
-	d.mutant = false
-	d.length = rand.IntN(12) + 6
-	d.speed = rand.IntN(5) + 5
-	if rand.IntN(100) < 10 { // make it mutant
-		d.speed = rand.IntN(2) + 1
-		d.mutant = true
-		d.length += 10
-	}
-	d.count = 0
-	for r := range d.runes {
-		switch face {
-			case 0:
-				d.runes[r] = rand.Int32N(27) + 65
-			case 1:
-				d.runes[r] = rand.Int32N(2) + 48
-			case 2:
-				d.runes[r] = rand.Int32N(93) + 33
-			case 3:
-				d.runes[r] = rand.Int32N(96) + 0x30A0
-			case 4:
-				d.runes[r] = rand.Int32N(96) + 0x3040
-			case 5:
-				d.runes[r] = rand.Int32N(144) + 0x0370
-		}
-	}
+	return &self.drops[self.count-1]
 }
 
 func (self *Column) remove(i int) {
@@ -83,20 +57,32 @@ func (self *Column) remove(i int) {
 }
 
 func (self *Column) tick() {
-	self.backTick()
+	// self.backTick()
 	if self.count == 0 { return }
+	self.visibleCount = 0
 
 	var d *Drop
 
 	// Advance
-	for i:=0; i<self.count; i++ {
+	for i:=self.count-1; i>=0; i-- {
 		d = &self.drops[i]
-		d.count++
-		if d.count >= d.speed {
-			d.pos++
-			d.dirty = true
-			d.count = 0
+
+		trueAdvance := false
+		if d.mutant || syncSpeed == 0 {
+			d.count++
+			if d.count >= d.speed { trueAdvance = true }
+		} else {
+			if syncAdvance { trueAdvance = true }
 		}
+
+		if trueAdvance {
+			d.pos++
+			if d.pos >= 0 { d.dirty = true }
+			d.count = 0			
+		} else {
+			continue
+		}
+		
 		// Check overlaps
 		if i > 0 {
 			if d.pos >= self.drops[i-1].pos {
@@ -110,11 +96,13 @@ func (self *Column) tick() {
 	d = &self.drops[self.count-1]
 	d.end = d.pos - d.length + 1
 	if d.end < 0 { d.end = 0 }
+	if d.end >= d.pos { d.end = d.pos }
 	for i:=self.count-2; i>=0; i-- {
 		d = &self.drops[i]
 		d.end = d.pos - d.length + 1
 		prev := self.drops[i+1].pos + 1
 		if d.end < prev { d.end = prev }
+		if d.end >= d.pos { d.end = d.pos }
 	}
 
 	// Remove completed
@@ -127,24 +115,23 @@ func (self *Column) tick() {
 	force := false
 	for i:=0; i<self.count; i++ {
 		force = force || self.drops[i].dirty
-		if force { self.draw(i) }
+		if force && d.pos >= 0 {
+			self.visibleCount++
+			self.draw(i)
+		}
 	}
+
+	// /*
+	s := fmt.Sprintf("%2d", self.count)
+	for i := range s {
+		scr.SetContent(self.x+i, scrh, rune(s[i]), nil, tcell.StyleDefault)
+	}	
+	// */
 }
 
 func (self *Column) draw(i int) {
 	d := &self.drops[i]
 	s := tcell.StyleDefault
-	var r, g, b int32
-	if d.mutant {
-		r = mutantTail.r / int32(d.length)
-		g = mutantTail.g / int32(d.length)
-		b = mutantTail.b / int32(d.length)
-	} else {
-		r = tailColor.r / int32(d.length)
-		g = tailColor.g / int32(d.length)
-		b = tailColor.b / int32(d.length)
-	}
-
 	var y int
 
 	l := d.pos - d.end + 1
@@ -156,25 +143,44 @@ func (self *Column) draw(i int) {
 			if d.mutant {
 				s.SetForegroundRGB(mutantHead.r, mutantHead.g, mutantHead.b)
 			} else {
-				s.SetForegroundRGB(headColor.r, headColor.g, headColor.b)
+				if d.lucent {			
+					s.SetForegroundRGB(lucentHead.r, lucentHead.g, lucentHead.b)
+				} else {
+					s.SetForegroundRGB(normalHead.r, normalHead.g, normalHead.b)
+				}
 			}
-			self.state[y].b = 255
+			// self.state[y].b = 1000
+			// if d.pos == d.end { break }
 		} else if p == l {
 			scr.SetContent(self.x, y, ' ', nil, tcell.StyleDefault)
-			self.state[y].b = 0
+			// self.state[y].b = 0
 			continue
 		} else {
-			bright := int32(d.length - p)
-			self.state[y].b = 255 / int32(d.length) * bright
-			rr := r * bright
-			gg := g * bright
-			bb := b * bright
-			s.SetForegroundRGB(rr, gg, bb)
+			alfa := int32((d.length - p)*1000/d.length)
+			var c Color
+			if d.mutant {
+				c = blend(mutantNeck, mutantTail, alfa)
+			} else {
+				if d.lucent {
+					/*
+					b := self.state[y].b
+					if b == 0 || b == 1000 {
+						b = rand.Int32N(11) * 60
+						b += 399
+						self.state[y].b = b
+					}
+					c = blend(lucentBody, Color{}, b)
+					*/
+				} else {
+					c = blend(normalNeck, normalTail, alfa)
+				}
+			}
+			s.SetForegroundRGB(c.r, c.g, c.b)
 		}
 		scr.SetContent(self.x, y, d.runes[y], nil, s)
 	}
-	if self.x > 0 { cols[self.x-1].backDraw() }
-	if self.x < scrw - 1 { cols[self.x+1].backDraw() }
+	// if self.x > 0 { cols[self.x-1].backDraw() }
+	// if self.x < scrw - 1 { cols[self.x+1].backDraw() }
 	
 	d.dirty = false
 }
@@ -196,7 +202,7 @@ func (self *Column) addBackDrop() {
 	d := &self.backs
 	d.pos = 0
 	d.length = rand.IntN(4) + 4
-	d.speed = rand.IntN(5) + 10
+	d.speed = rand.IntN(3) + 15
 	d.back = true
 	d.count = 0
 	
@@ -241,9 +247,9 @@ func (self *Column) backDraw() {
 
 	var y int
 
-	var prev, next *Column
-	if self.x > 0 { prev = &cols[self.x-1] }
-	if self.x < scrw - 1 { next = &cols[self.x+1] }
+	// var prev, next *Column
+	// if self.x > 0 { prev = &cols[self.x-1] }
+	// if self.x < scrw - 1 { next = &cols[self.x+1] }
 	
 	l := d.pos - d.end + 1
 	for p := 0; p <= l; p++ {
@@ -255,11 +261,11 @@ func (self *Column) backDraw() {
 			continue
 		} else {
 			var bright int32 = 510
-			if prev != nil { bright -= prev.state[y].b }
-			if next != nil { bright -= next.state[y].b }
-			bright /= 4
+			// if prev != nil { bright -= prev.state[y].b }
+			// if next != nil { bright -= next.state[y].b }
+			bright /= 2
 			//bright /= 255
-			self.state[y].b = bright
+			// self.state[y].b = bright
 			rr := r * bright
 			gg := g * bright
 			bb := b * bright
