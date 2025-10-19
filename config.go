@@ -38,7 +38,7 @@ func defaults() {
 	normalTail = Color{  0,  25,   0}
 	normalMinSpeed = 2
 	normalMaxSpeed = 4
-	normalSpeedStep = 4
+	normalSpeedStep = 3
 	normalMinLen = 8
 	normalMaxLen = 16
 	normalCharset = 2

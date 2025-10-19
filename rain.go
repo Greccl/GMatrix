@@ -14,17 +14,17 @@ var syncCount int
 var syncAdvance bool
 var rainStatus bool
 
-
+/*
 type Cell struct {
 	r rune
 	value int
 }
 var scene [][]Cell
-
+*/
 
 func rain_resize() {
 	if scrw == 0 { return }
-	cols = Reslice(cols, scrw)
+	cols = SliceResize(cols, scrw)
 	
 	for i := range cols {
 		cols[i].x = i
@@ -46,7 +46,7 @@ func rain_tick() {
 	for i := 0; i < len(cols); i++ {
 		cols[i].tick()
 	}
-	scr.Show()
+	damage()
 }
 
 

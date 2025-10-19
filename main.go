@@ -9,25 +9,8 @@ import (
 )
 
 
-type Color struct {
-	r, g, b int32
-}
 
-var scr tcell.Screen
-var scrw, scrh int
-var oddOffset int
-
-
-func resize() {
-	scrw, scrh = scr.Size()
-	scrh -= reservedHeight
-	oddOffset = scrw % 2
-	state_resize()
-	rain_resize()
-	scr.Clear()
-}
-
-func Reslice[T any](s []T, n int) []T {
+func SliceResize[T any](s []T, n int) []T {
 	if n == len(s) { return s }
 	if n <= cap(s) { return s[:n] }
 	newSlice := make([]T, n)
@@ -35,26 +18,13 @@ func Reslice[T any](s []T, n int) []T {
 	return newSlice
 }
 
-func blend(a, b Color, alfa int32) Color {
-	var c Color
-	beta := 1000 - alfa
-	c.r = ((a.r * alfa) + (b.r * beta)) / 1000
-	c.g = ((a.g * alfa) + (b.g * beta)) / 1000
-	c.b = ((a.b * alfa) + (b.b * beta)) / 1000
-	return c
-}
-
-func printText(x, y int, s string) {
-	for i, r := range s {
-		scr.SetContent(x+i, y, r, nil, tcell.StyleDefault)
+func SliceRemove[T any](s []T, i int) []T {
+	last := len(s) - 1
+	if i < last {
+		copy(s[i:], s[i+1:])
 	}
-	scr.Show()
+	return s[:last]
 }
-
-func drawCell(level, x, y int, r rune, s tcell.Style) {
-	
-}
-
 
 
 
@@ -95,7 +65,7 @@ func main() {
 	// A timer to update animations
 	ch_Tick := time.Tick(time.Duration(frameDuration)*time.Millisecond)
 
-	// Setup process, wait for resize event or abort
+	// Setup step, wait for resize event or abort
 	// if a timeout is reached (is 1 second enough?)
 	initTimeout := 0
 
@@ -127,6 +97,7 @@ func main() {
 		return
 	}
 
+	// Main loop
 	LOOP:
 	for {
 		select {
@@ -139,7 +110,10 @@ func main() {
 								case 'p':
 									rainStatus = !rainStatus
 								case 's':
-									if !rainStatus { rain_tick() }
+									if !rainStatus {
+										rain_tick()
+										overlay_tick()
+									}
 								case 'q':
 									break LOOP
 							}
@@ -149,19 +123,13 @@ func main() {
 				}
 			case line := <- ch_Commands:
 				processCommand(line)
-				/*
-				switch line {
-					case "--end":
-						break LOOP
-					case "--pause":
-						playState = !playState
-				}
-				*/
+			case <- ch_Draw:
+				scr.Show()
 			case <- ch_Tick:
 				if rainStatus {
 					rain_tick()
+					overlay_tick()
 				}
-				overlay_tick()
 		}
 	}
 }

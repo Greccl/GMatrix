@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	// "fmt"
 	"math/rand/v2"
 	"github.com/Greccl/tcell/v2"
 )
@@ -26,9 +26,9 @@ type Column struct {
 
 func (self *Column) resize() {
 	for i := range self.drops {
-		self.drops[i].runes = Reslice(self.drops[i].runes, scrh)
+		self.drops[i].runes = SliceResize(self.drops[i].runes, scrh)
 	}
-	self.backs.runes = Reslice(self.backs.runes, scrh)
+	self.backs.runes = SliceResize(self.backs.runes, scrh)
 	// self.state = Reslice(self.state, scrh)
 }
 
@@ -121,12 +121,12 @@ func (self *Column) tick() {
 		}
 	}
 
-	// /*
+	/*
 	s := fmt.Sprintf("%2d", self.count)
 	for i := range s {
 		scr.SetContent(self.x+i, scrh, rune(s[i]), nil, tcell.StyleDefault)
 	}	
-	// */
+	*/
 }
 
 func (self *Column) draw(i int) {
@@ -139,7 +139,9 @@ func (self *Column) draw(i int) {
 		y = d.pos-p
 		if y < 0 { return }
 		if y >= scrh { continue }
+		// can := canDraw(1, self.x, y)
 		if p == 0 {
+			overlay_touch(self.x, y)
 			if d.mutant {
 				s.SetForegroundRGB(mutantHead.r, mutantHead.g, mutantHead.b)
 			} else {
@@ -149,35 +151,30 @@ func (self *Column) draw(i int) {
 					s.SetForegroundRGB(normalHead.r, normalHead.g, normalHead.b)
 				}
 			}
-			// self.state[y].b = 1000
-			// if d.pos == d.end { break }
 		} else if p == l {
-			scr.SetContent(self.x, y, ' ', nil, tcell.StyleDefault)
-			// self.state[y].b = 0
+			// if can {
+				// drawCell(1, self.x, y, ' ', tcell.StyleDefault)
+			// }
+			releaseCell(1, self.x, y)
 			continue
 		} else {
 			alfa := int32((d.length - p)*1000/d.length)
 			var c Color
 			if d.mutant {
-				c = blend(mutantNeck, mutantTail, alfa)
+				c = blend(mutantNeck, mutantTail, 1000-alfa)
 			} else {
 				if d.lucent {
-					/*
-					b := self.state[y].b
-					if b == 0 || b == 1000 {
-						b = rand.Int32N(11) * 60
-						b += 399
-						self.state[y].b = b
-					}
-					c = blend(lucentBody, Color{}, b)
-					*/
+					
 				} else {
-					c = blend(normalNeck, normalTail, alfa)
+					c = blend(normalNeck, normalTail, 1000-alfa)
 				}
 			}
 			s.SetForegroundRGB(c.r, c.g, c.b)
 		}
-		scr.SetContent(self.x, y, d.runes[y], nil, s)
+		// if can {
+			// scr.SetContent(self.x, y, d.runes[y], nil, s)
+			drawCell(1, self.x, y, d.runes[y], s)
+		// }
 	}
 	// if self.x > 0 { cols[self.x-1].backDraw() }
 	// if self.x < scrw - 1 { cols[self.x+1].backDraw() }
