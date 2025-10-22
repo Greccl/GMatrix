@@ -62,8 +62,8 @@ func parseColor(s string) (c Color, err error) {
 		val, err = strconv.Atoi(strings.TrimSpace(parts[2]))
 		if err != nil { return }
 		if val < 0 || val > 255 { return c, fmt.Errorf("blue value out of range") }
-		c.r = int32(val)		
-		return
+		c.b = int32(val)
+		return c, nil
 	}
 
 	return c, fmt.Errorf("unknown color format")

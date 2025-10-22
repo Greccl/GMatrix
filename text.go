@@ -2,7 +2,6 @@ package main
 
 import (
 	"math/rand/v2"
-	// "github.com/spf13/pflag"
 	"github.com/Greccl/tcell/v2"
 )
 
@@ -23,33 +22,40 @@ type Text struct {
 	name string
 	runes []rune
 	x, y int
-	centerx, centery bool
+	halign, valign bool
+	setx, sety int
 	fg, bg Color
-	blends []int32
-
 	anim TextAnimator
-	
-	animFunc func()
-	animName string
-
-	animData_int int
-	animData_int32 int32
-	animData_bool bool
 }
 
 func NewText() *Text {
-	t := new(Text)
-	t.x = 10
-	t.y = len(boxes)
-	t.setAnimation("none")
-	t.fg = Color{50, 100, 255}
-	return t
+	self := new(Text)
+	self.setAnimation("none")
+	self.fg = Color{255, 255, 255}
+	self.bg = Color{  0,   0,   0}
+	return self
 }
 
-func (t *Text) move(x, y int) {
-	t.releaseAll()
-	t.x = x
-	t.y = y	
+func (self *Text) movex() {
+	var x int
+	if self.halign { x = (scrw-len(self.runes)) / 2 } else
+	if self.setx < 0 { x = scrw - len(self.runes) + 1 }
+	x += self.setx
+	if x != self.x {
+		self.releaseAll()
+		self.x = x
+	}
+}
+
+func (self *Text) movey() {
+	var y int
+	if self.valign { y = scrh / 2 } else
+	if self.sety < 0 { y = scrh }
+	y += self.sety
+	if y != self.y {
+		self.releaseAll()
+		self.y = y
+	}
 }
 
 func (t *Text) setText(str string) {
@@ -60,37 +66,23 @@ func (t *Text) setText(str string) {
 		releaseCell(2, t.x+oldLen, t.y)
 		oldLen--
 	}
-	t.blends = make([]int32, len(t.runes))
-	t.setAnimation(t.animName)
+	t.anim.init(t)
 }
 
 func (t *Text) setAnimation(name string) {
 	switch name {
 		case "none":
 			t.anim = new(TextAnimator0)
-			t.anim.init(t)
-			// t.animFunc = t.anim_0
-			// t.animData_bool = false
-		case "basic":
+		case "fadein":
 			t.anim = new(TextAnimator1)
-			t.anim.init(t)
-			// t.animFunc = t.anim_1
-			for i := range t.blends {
-				t.blends[i] = (rand.Int32N(5)*20) + 100
-			}
-		case "progresive":
+		case "shine":
 			t.anim = new(TextAnimator2)
-			t.anim.init(t)
-			t.animData_int = -1
-			for i := range t.runes {
-				releaseCell(2, t.x+i, t.y)
-			}
+		case "progresive":
+			t.anim = new(TextAnimator3)
 		default:
 			return
 	}
-
-	t.animFunc()
-	t.animName = name
+	t.anim.init(t)
 }
 
 func (t *Text) releaseAll() {
@@ -113,13 +105,24 @@ func (t *Text) autoremove() {
 
 
 
+//
+//   Animator 0
+//
+type TextAnimator0 struct {
+	drawn bool
+}
 
+func (self *TextAnimator0) init(t *Text) {
 
+}
 
+func (self *TextAnimator0) tick(t *Text) {
+	if self.drawn { return }
+	self.draw(t)
+	self.drawn = true
+}
 
-func (t *Text) anim_0() {
-	if t.animData_bool { return }
-	t.animData_bool = true
+func (self *TextAnimator0) draw(t *Text) {
 	s := tcell.StyleDefault
 	s.SetBackgroundRGB(t.bg.r, t.bg.g, t.bg.b)
 	s.SetForegroundRGB(t.fg.r, t.fg.g, t.fg.b)
@@ -128,57 +131,151 @@ func (t *Text) anim_0() {
 	}
 }
 
-func (t *Text) anim_1() {
-	s := tcell.StyleDefault
-	s.SetBackgroundRGB(t.bg.r, t.bg.g, t.bg.b)
-	for r := range t.blends {
-		draw := false
-		blender := t.fg
-		var alfa int32 = 1000
-		if t.blends[r] < 500 {
-			t.blends[r] += 10
-			blender = Color{}
-			alfa = t.blends[r] * 2
-			if alfa < 0 { alfa = 0 }
-			draw = true
-		}
-		if t.blends[r] > 500 {
-			t.blends[r] -= 25
-			blender = Color{255, 200, 200}
-			alfa = (1000-t.blends[r]) * 2
-			draw = true
-		}
-		if draw {
-			c := blend(t.fg, blender, 1000-alfa)
-			s.SetForegroundRGB(c.r, c.g, c.b)
-			drawCell(2, t.x+r, t.y, t.runes[r], s)
-		}
+
+
+
+
+//
+//   Animator 1
+//
+type TextAnimator1 struct {
+	blends []int32
+	fg Color
+	i int
+}
+
+func (self *TextAnimator1) init(t *Text) {
+	self.blends = SliceResize(self.blends, len(t.runes))
+	for i := range self.blends {
+		self.blends[i] = (rand.Int32N(5)*60) - 200
 	}
 }
 
+func (self *TextAnimator1) tick(t *Text) {
+	self.tick2(t, true)
+}
 
+func (self *TextAnimator1) tick2(t *Text, tick bool) {
+	for i := range self.blends {
+		blender := t.fg
+		alfa := int32(0)
+		if self.blends[i] < 1000 {
+			if tick { self.blends[i] += 20 }
+			alfa = self.blends[i]
+			if alfa < 0 { alfa = 0 }
+			blender = Color{}
+		} else if tick {
+			continue
+		}
+		self.fg = blend(t.fg, blender, 1000-alfa)
+		self.i = i
+		self.draw(t)
+	}
+}
+
+func (self *TextAnimator1) draw(t *Text) {
+	if self.i < 0 {
+		self.tick2(t, false)
+		self.i = -1
+		return
+	}
+	s := tcell.StyleDefault
+	s.SetForegroundRGB(self.fg.r, self.fg.g, self.fg.b)
+	s.SetBackgroundRGB(t.bg.r, t.bg.g, t.bg.b)
+	drawCell(2, t.x+self.i, t.y, t.runes[self.i], s)
+	self.i = -1
+}
+
+
+
+
+
+//
+//   Animator 2
+//
 type TextAnimator2 struct {
-	
+	blends []int32
+	fg Color
+	i int
+}
+
+func (self *TextAnimator2) init(t *Text) {
+	self.blends = SliceResize(self.blends, len(t.runes))
+	for i := range self.blends {
+		self.blends[i] = 1
+	}
+}
+
+func (self *TextAnimator2) tick(t *Text) {
+	self.tick2(t, true)
+}
+
+func (self *TextAnimator2) tick2(t *Text, tick bool) {
+	for i := range self.blends {
+		blender := t.fg
+		if tick && rand.Float32() < 0.0100 {
+			self.blends[i] = 1000
+		}
+		if self.blends[i] > 100 {
+			if tick { self.blends[i] -= 50 }
+			blender = Color{255, 255, 255}
+		} else if self.blends[i] > 0 {
+			self.blends[i] = 0
+		} else if tick {
+			continue
+		}
+		self.fg = blend(t.fg, blender, self.blends[i])
+		self.i = i
+		self.draw(t)
+	}
+}
+
+func (self *TextAnimator2) draw(t *Text) {
+	if self.i < 0 {
+		self.tick2(t, false)
+		self.i = -1
+		return
+	}
+	s := tcell.StyleDefault
+	s.SetForegroundRGB(self.fg.r, self.fg.g, self.fg.b)
+	s.SetBackgroundRGB(t.bg.r, t.bg.g, t.bg.b)
+	drawCell(2, t.x+self.i, t.y, t.runes[self.i], s)
+	self.i = -1
 }
 
 
-func (a *TextAnimator2) init(t *Text) {
 
+
+
+//
+//   Animator 3
+//
+type TextAnimator3 struct {
+	last int
 }
 
-func (a *TextAnimator2) tick(t *Text) {
-	if t.animData_int >= len(t.runes) { return }
-	t.animData_int++
-	if t.animData_int < len(t.runes) {
+func (self *TextAnimator3) init(t *Text) {
+	self.last = -1
+}
+
+func (self *TextAnimator3) tick(t *Text) {
+	if self.last >= len(t.runes) { return }
+	self.last++
+	if self.last < len(t.runes) {
 		s := tcell.StyleDefault
 		s.SetBackgroundRGB(t.bg.r, t.bg.g, t.bg.b)
 		s.SetForegroundRGB(t.fg.r, t.fg.g, t.fg.b)
-		drawCell(2, t.x+t.animData_int, t.y, t.runes[t.animData_int], s)
+		drawCell(2, t.x+self.last, t.y, t.runes[self.last], s)		
 	}
 }
 
-func (a *TextAnimator2) draw(t *Text) {
-
+func (self *TextAnimator3) draw(t *Text) {
+	s := tcell.StyleDefault
+	s.SetBackgroundRGB(t.bg.r, t.bg.g, t.bg.b)
+	s.SetForegroundRGB(t.fg.r, t.fg.g, t.fg.b)
+	for i:=0; i<self.last; i++ {
+		drawCell(2, t.x+i, t.y, t.runes[i], s)
+	}
 }
 
 

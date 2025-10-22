@@ -19,7 +19,38 @@ var boxes []*Text
 
 func resetFlag(f *pflag.Flag) {
 	f.Value.Set(f.DefValue)
+	f.Changed = false
 }
+
+func getBool(fs *pflag.FlagSet, name string) (bool,bool) {
+	f := fs.Lookup(name)
+	if !f.Changed { return false, false }
+	value, _ := fs.GetBool(name)
+	return true, value
+}
+
+func getInt(fs *pflag.FlagSet, name string) (bool,int) {
+	f := fs.Lookup(name)
+	if !f.Changed { return false, 0 }
+	value, _ := fs.GetInt(name)
+	return true, value
+}
+
+func getIntSlice(fs *pflag.FlagSet, name string) (bool,[]int) {
+	f := fs.Lookup(name)
+	if !f.Changed { return false, []int{} }
+	value, _ := fs.GetIntSlice(name)
+	return true, value
+}
+
+func getString(fs *pflag.FlagSet, name string) (bool,string) {
+	f := fs.Lookup(name)
+	if !f.Changed { return false, "" }
+	value, _ := fs.GetString(name)
+	return true, value
+}
+
+
 
 
 
@@ -30,7 +61,7 @@ func overlay_touch(x, y int) {
 			l := len(t.runes)
 			p := x - t.x
 			if p >= 0 && p < l {
-				t.blends[p] = 1000
+				// t.blends[p] = 1000
 				break
 			}
 		}
@@ -77,7 +108,9 @@ func findTextByName(name string) *Text {
 
 func handleCommand_text(fs *pflag.FlagSet) {
 	var t *Text
+	var draw, movex, movey bool
 
+	// Find target text
 	id, _ := fs.GetInt("id")
 	if id > 0 {
 		t = findTextById(id)
@@ -87,6 +120,7 @@ func handleCommand_text(fs *pflag.FlagSet) {
 		t = findTextByName(name)
 	}
 
+	// Issue a kill command
 	if b, _ := fs.GetBool("kill"); b {
 		if t != nil {
 			t.autoremove()
@@ -94,6 +128,7 @@ func handleCommand_text(fs *pflag.FlagSet) {
 		return
 	}
 
+	// Create if doesnt exists
 	if t == nil {
 		t = NewText()
 		t.id = id
@@ -101,54 +136,84 @@ func handleCommand_text(fs *pflag.FlagSet) {
 		boxes = append(boxes, t)
 	}
 
+	// Text
 	s := fs.Arg(0)
 	if len(s) > 0 {
 		t.setText(s)
+		draw = true
 	}
 
+	// Colours
 	s, _ = fs.GetString("foreground")
 	if len(s) > 0 {
 		c, err := parseColor(s)
-		if err == nil { t.fg = c }
-		// {panic("FG NOT SET")}
-		// panic("FG SET")
+		if err == nil {
+			t.fg = c
+			draw = true
+		}
 	}
 
 	s, _ = fs.GetString("background")
 	if len(s) > 0 {
 		c, err := parseColor(s)
-		if err == nil { t.bg = c }
-		// panic("SET BG")
-	}
-
-	if b, _ := fs.GetBool("centerx"); b {
-		t.centerx = true
-	}
-	if b, _ := fs.GetBool("centery"); b {
-		t.centery = true
-	}
-
-	var moved bool
-	x, err := fs.GetInt("x")
-	if err == nil { moved = true }
-	y, err := fs.GetInt("y")
-	if err == nil { moved = true }
-	if moved { t.move(x, y) }
-
-	s, _ = fs.GetString("animation")
-	if len(s) > 0 {
-		t.setAnimation(s)
-	} else {
-		if t.animName != "" {
-			t.animFunc()
-		} else {
-			// b := t.animData_bool
-			t.animData_bool = false
-			t.anim_0()
-			// t.animData_bool = b
+		if err == nil {
+			t.bg = c
+			draw = true
 		}
 	}
 
+	// Align
+	if changed, value := getBool(fs, "halign"); changed {
+		t.halign = value
+		movex = true
+	}
+	if changed, value := getBool(fs, "valign"); changed {
+		t.valign = value
+		movey = true
+	}
+
+	// Position
+	if changed, value := getIntSlice(fs, "position"); changed {
+		if len(value) == 2 {
+			t.setx = value[0]
+			t.sety = value[1]
+			movex = true
+			movey = true
+		}
+	} else {
+		if changed, value := getInt(fs, "x"); changed {
+			t.setx = value
+			movex = true
+		}
+		if changed, value := getInt(fs, "y"); changed {
+			t.sety = value
+			movey = true
+		}
+	}
+
+	// Animation type
+	if changed, value := getString(fs, "animation"); changed {
+		t.setAnimation(value)
+		draw = true
+	}
+
+	// recalculate position
+	if movex {
+		t.movex()
+		draw = true
+	}
+
+	if movey {
+		t.movey()
+		draw = true
+	}
+
+	// redraw needed
+	if draw {
+		t.anim.draw(t)
+	}
+
+	// Reset flagset state to process next command
 	fs.VisitAll(resetFlag)
 }
 
@@ -176,17 +241,17 @@ func initCommands() {
 	fset := pflag.NewFlagSet("text", pflag.ContinueOnError)
 	commands["text"] = fset
 	handlers["text"] = handleCommand_text
-	fset.IntP    ("x"         , "x", 0     , "x position of text box")
-	fset.IntP    ("y"         , "y", 0     , "y position of text box")
-	fset.BoolP   ("centerx"   , "X", false , "evaluate horizontal position from center of screen")
-	fset.BoolP   ("centery"   , "Y", false , "evaluate vertical position from center of screen")
-	fset.IntP    ("id"        , "i", 0     , "identifier (integer value) for the text box")
-	fset.StringP ("name"      , "n", ""    , "identifier (string) for the text box")
-	fset.BoolP   ("modify"    , "m", false , "try modify an existent box")
-	fset.BoolP   ("kill"      , "k", false , "try remove given box")
-	fset.StringP ("animation" , "a", "", "name of animation")
-	fset.StringP ("foreground", "f", ""    , "set foreground colour")
-	fset.StringP ("background", "b", ""    , "set background colour")
+	fset.IntSliceP("position" , "p", []int{}, "a compact way to set x and y position")
+	fset.IntP    ("x"         , "x", 0      , "x position of text box")
+	fset.IntP    ("y"         , "y", 0      , "y position of text box")
+	fset.BoolP   ("halign"    , "h", false  , "evaluate horizontal position from center of screen")
+	fset.BoolP   ("valign"    , "v", false  , "evaluate vertical position from center of screen")
+	fset.IntP    ("id"        , "i", 0      , "identifier (integer value) for the text box")
+	fset.StringP ("name"      , "n", ""     , "identifier (string) for the text box")
+	fset.BoolP   ("kill"      , "k", false  , "try remove given box")
+	fset.StringP ("animation" , "a", ""     , "name of animation")
+	fset.StringP ("foreground", "f", ""     , "set foreground colour")
+	fset.StringP ("background", "b", ""     , "set background colour")
 
 	fset = pflag.NewFlagSet("state", pflag.ContinueOnError)
 	commands["state"] = fset
