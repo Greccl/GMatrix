@@ -3,9 +3,10 @@ package main
 import (
 	"os"
 	"bufio"
+	"net"
+	"fmt"
 	"github.com/spf13/pflag"
 )
-// import flags "github.com/jessevdk/go-flags"
 
 var lucentHead, lucentBody Color
 var backHead, backNeck, backTail Color
@@ -27,7 +28,10 @@ var overlap int
 var maxDropsPerColumn int
 var reservedHeight int
 var syncSpeed int
-var cmdPath string
+
+
+
+
 
 func defaults() {
 	// normalHead = Color{255, 153,   0}
@@ -62,30 +66,81 @@ func defaults() {
 }
 
 func readCommandLine() {
-	var configPath string
-	pflag.StringVarP(&cmdPath, "pipe", "p", "", "[path] pipe for reading commands")
-	pflag.StringVarP(&configPath, "config", "c", "", "[path] configuration file")
+	files      := pflag.StringSliceP("file"    , "f", []string{}, "[path] file for reading commands")
+	configPath := pflag.StringP     ("config"  , "c", ""        , "[path] configuration file")
+	socket     := pflag.StringP     ("socket"  , "s", "0"       , "create a server socket to read commands")
+	pflag.BoolVarP(&kbDriven, "keyboard", "k", false, "enable keyboard events (disables stdin as command source)")
+	sockpath   := pflag.Bool("socket-path", false, "print socket path and exit")
 
 	pflag.Parse()	
 
-	if configPath != "" {
-		readCommandFile(configPath, nil)
+	// Read config file at the very begining
+	if *configPath != "" {
+		f, err := os.Open(*configPath)
+		if err == nil {
+			defer f.Close()
+			sc := bufio.NewScanner(f)
+			for sc.Scan() {
+				line := sc.Text()
+				parseCommand(line)
+			}
+		}
+	}
+
+	// Read other command files in parallel
+	for _, path := range *files {
+		go readCommandFile(path)
+	}
+
+	// Start the server socket
+	if flag := pflag.Lookup("socket"); flag.Changed {
+		socketPath := os.TempDir() + "/gmatrix." + *socket + ".sock"
+		os.Remove(socketPath)
+		if *sockpath {
+			fmt.Printf("%s", socketPath)
+			os.Exit(0)
+		}
+		go initServer(socketPath)
+	}
+
+	// proccess non-flag arguments as comands
+	for _, cmd := range pflag.Args() {
+		parseCommand(cmd)
 	}
 }
 
+func initServer(path string) {
+	l, err := net.Listen("unix", path)
+	if err != nil { panic(err) }
 
-func readCommandFile(path string, ch chan string) {
+	defer l.Close()
+	defer os.Remove(path)
+	for {
+		conn, err := l.Accept()
+		if err != nil { continue }
+		go handleConn(conn)
+	}	
+}
+
+func handleConn(conn net.Conn) {
+	defer conn.Close()
+
+	reader := bufio.NewScanner(conn)
+
+	for reader.Scan() {
+		line := reader.Text()
+		parseCommand(line)
+	}
+}
+
+func readCommandFile(path string) {
 	f, err := os.Open(path)
 	if err != nil { return }
 	defer f.Close()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		line := sc.Text()
-		if ch == nil {
-			processCommand(line)
-		} else {
-			ch <- line
-		}
+		parseCommand(line)
 	}
-	close(ch)
 }
+

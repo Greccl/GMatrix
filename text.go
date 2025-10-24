@@ -3,7 +3,32 @@ package main
 import (
 	"math/rand/v2"
 	"github.com/Greccl/tcell/v2"
+	"github.com/spf13/pflag"
 )
+
+
+
+
+
+var boxes []*Text
+
+func findTextById(id int) *Text {
+	for i := range boxes {
+		if boxes[i].id == id {
+			return boxes[i]
+		}
+	}
+	return nil
+}
+
+func findTextByName(name string) *Text {
+	for i := range boxes {
+		if boxes[i].name == name {
+			return boxes[i]
+		}
+	}
+	return nil
+}
 
 
 
@@ -283,3 +308,132 @@ func (self *TextAnimator3) draw(t *Text) {
 
 
 
+//
+// ***text*** command handler
+//
+func handleCommand_text(fs *pflag.FlagSet) {
+	var t *Text
+	var draw, movex, movey bool
+
+	// Find target text
+	id, _ := fs.GetInt("id")
+	if id > 0 {
+		t = findTextById(id)
+	}
+	name, _ := fs.GetString("name")
+	if t == nil && name != "" {
+		t = findTextByName(name)
+	}
+
+	// Issue a kill command
+	if b, _ := fs.GetBool("kill"); b {
+		if t != nil {
+			t.autoremove()
+		}
+		return
+	}
+
+	// Create if doesnt exists
+	if t == nil {
+		t = NewText()
+		t.id = id
+		t.name = name
+		boxes = append(boxes, t)
+	}
+
+	// Text
+	s := fs.Arg(0)
+	if len(s) > 0 {
+		t.setText(s)
+		movex = true
+	}
+
+	// Colours
+	s, _ = fs.GetString("foreground")
+	if len(s) > 0 {
+		c, err := parseColor(s)
+		if err == nil {
+			t.fg = c
+			draw = true
+		}
+	}
+
+	s, _ = fs.GetString("background")
+	if len(s) > 0 {
+		c, err := parseColor(s)
+		if err == nil {
+			t.bg = c
+			draw = true
+		}
+	}
+
+	// Align
+	if changed, value := getBool(fs, "halign"); changed {
+		t.halign = value
+		movex = true
+	}
+	if changed, value := getBool(fs, "valign"); changed {
+		t.valign = value
+		movey = true
+	}
+
+	// Position
+	if changed, value := getIntSlice(fs, "position"); changed {
+		if len(value) == 2 {
+			t.setx = value[0]
+			t.sety = value[1]
+			movex = true
+			movey = true
+		}
+	} else {
+		if changed, value := getInt(fs, "x"); changed {
+			t.setx = value
+			movex = true
+		}
+		if changed, value := getInt(fs, "y"); changed {
+			t.sety = value
+			movey = true
+		}
+	}
+
+	// Animation type
+	if changed, value := getString(fs, "animation"); changed {
+		t.setAnimation(value)
+		draw = true
+	}
+
+	// recalculate position
+	if movex {
+		t.movex()
+		draw = true
+	}
+
+	if movey {
+		t.movey()
+		draw = true
+		// panic("MOVE Y")
+	}
+
+	// redraw needed
+	if draw {
+		t.anim.draw(t)
+	}
+
+	// Reset flagset state to process next command
+	// fs.VisitAll(resetFlag)
+}
+
+
+
+
+
+//
+// Text animation loop
+//
+
+func text_tick() {
+	for i := range boxes {
+		t := boxes[i]
+		t.anim.tick(t)
+	}
+}

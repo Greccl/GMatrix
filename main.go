@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 	"time"
-	// "bufio"
 	"github.com/Greccl/tcell/v2"
 )
+
+
 
 
 
@@ -28,18 +29,19 @@ func SliceRemove[T any](s []T, i int) []T {
 
 
 
+
+var ch_Commands = make(chan SplitCmd, 32)
+var kbDriven bool
+
+
+
+
+
 func main() {
 	// Read command line arguments
 	defaults()
 	initCommands()
 	readCommandLine()
-	
-	// Open the pipe for reading external commands
-	var ch_Commands chan string
-	if cmdPath != "" {
-		ch_Commands = make(chan string)
-		go readCommandFile(cmdPath, ch_Commands)
-	}
 
 	// Init tcell screen
 	var e error
@@ -112,7 +114,7 @@ func main() {
 								case 's':
 									if !rainStatus {
 										rain_tick()
-										overlay_tick()
+										text_tick()
 									}
 								case 'q':
 									break LOOP
@@ -121,14 +123,18 @@ func main() {
 					case *tcell.EventResize:
 						resize()
 				}
-			case line := <- ch_Commands:
-				processCommand(line)
+			case split := <- ch_Commands:
+				cmd  := split.cmd
+				args := split.args
+				cmd.fs.Parse(args)
+				cmd.fn(cmd.fs)
+				cmd.fs.VisitAll(resetFlag)
 			case <- ch_Draw:
 				scr.Show()
 			case <- ch_Tick:
 				if rainStatus {
 					rain_tick()
-					overlay_tick()
+					text_tick()
 				}
 		}
 	}

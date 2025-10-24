@@ -141,7 +141,6 @@ func (self *Column) draw(i int) {
 		if y >= scrh { continue }
 		// can := canDraw(1, self.x, y)
 		if p == 0 {
-			overlay_touch(self.x, y)
 			if d.mutant {
 				s.SetForegroundRGB(mutantHead.r, mutantHead.g, mutantHead.b)
 			} else {

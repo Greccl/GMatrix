@@ -125,6 +125,8 @@ func printText(x, y int, s string) {
 }
 
 func drawCell(level int8, x, y int, r rune, s tcell.Style) {
+	if x >= scrw { return }
+	if y >= scrh { return }
 	cell := &state[x][y]
 	cell.data[level].r = r
 	cell.data[level].s = s
